@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Jane00000 智能合約互動網頁</title>
+
+  <!-- 引入 ethers.js，讓網頁可以和智能合約互動 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.15.0/ethers.umd.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.6;
+      background-color: #f7f7f7;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .card {
+      background-color: white;
+      padding: 20px;
+      margin-top: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 8px;
+      background-color: #4f46e5;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    pre {
+      background-color: #f1f1f1;
+      padding: 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .small {
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Jane00000 智能合約互動網頁</h1>
+
+  <div class="card">
+    <h2>合約資訊</h2>
+    <p class="small">目前連接的合約地址：</p>
+    <pre>0xaadAd9CD88962992790AD37DD960F2e0f326eF97</pre>
+  </div>
+
+  <div class="card">
+    <h2>1. 連接 MetaMask</h2>
+    <button id="connectBtn">連接 MetaMask</button>
+    <p class="small">請確認 MetaMask 網路是 Sepolia Testnet。</p>
+  </div>
+
+  <div class="card">
+    <h2>2. 讀取目前訊息</h2>
+    <button id="readBtn" disabled>讀取 message</button>
+    <pre id="messageOutput">尚未讀取</pre>
+  </div>
+
+  <div class="card">
+    <h2>3. 更新訊息</h2>
+    <input type="text" id="newMessageInput" placeholder="請輸入新的 message">
+    <button id="updateBtn" disabled>更新 message</button>
+  </div>
+
+  <div class="card">
+    <h2>執行紀錄</h2>
+    <pre id="logOutput">尚未連接 MetaMask</pre>
+  </div>
+
+  <script>
+    // 你的智能合約地址
+    const CONTRACT_ADDRESS = "0xaadAd9CD88962992790AD37DD960F2e0f326eF97";
+
+    // 你的智能合約 ABI
+    const CONTRACT_ABI = [
+      {
+        "inputs": [],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [],
+        "name": "message",
+        "outputs": [
+          {
+            "internalType": "string",
+            "name": "",
+            "type": "string"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "string",
+            "name": "_newMessage",
+            "type": "string"
+          }
+        ],
+        "name": "updateMessage",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ];
+
+    const connectBtn = document.getElementById("connectBtn");
+    const readBtn = document.getElementById("readBtn");
+    const updateBtn = document.getElementById("updateBtn");
+    const messageOutput = document.getElementById("messageOutput");
+    const newMessageInput = document.getElementById("newMessageInput");
+    const logOutput = document.getElementById("logOutput");
+
+    let provider;
+    let signer;
+    let contract;
+
+    function log(message) {
+      logOutput.textContent += "\n" + message;
+    }
+
+    async function connectWallet() {
+      try {
+        if (!window.ethereum) {
+          logOutput.textContent = "錯誤：請先安裝 MetaMask。";
+          return;
+        }
+
+        logOutput.textContent = "正在連接 MetaMask...";
+
+        await window.ethereum.request({
+          method: "eth_requestAccounts"
+        });
+
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+
+        const walletAddress = await signer.getAddress();
+
+        contract = new ethers.Contract(
+          CONTRACT_ADDRESS,
+          CONTRACT_ABI,
+          signer
+        );
+
+        log("已成功連接錢包：" + walletAddress);
+
+        connectBtn.disabled = true;
+        connectBtn.textContent = "已連接 MetaMask";
+        readBtn.disabled = false;
+        updateBtn.disabled = false;
+
+      } catch (error) {
+        log("連接失敗：" + error.message);
+      }
+    }
+
+    async function readMessage() {
+      try {
+        log("正在讀取合約中的 message...");
+
+        const currentMessage = await contract.message();
+
+        messageOutput.textContent = currentMessage;
+        log("讀取成功：" + currentMessage);
+
+      } catch (error) {
+        log("讀取失敗：" + error.message);
+      }
+    }
+
+    async function updateMessage() {
+      try {
+        const newMessage = newMessageInput.value.trim();
+
+        if (newMessage === "") {
+          log("請先輸入新的 message。");
+          return;
+        }
+
+        log("正在送出交易，請在 MetaMask 確認...");
+
+        const tx = await contract.updateMessage(newMessage);
+
+        log("交易已送出。");
+        log("Transaction Hash：" + tx.hash);
+        log("等待區塊鏈確認交易...");
+
+        await tx.wait();
+
+        log("交易確認完成。");
+
+        const updatedMessage = await contract.message();
+        messageOutput.textContent = updatedMessage;
+
+        log("更新後的 message：" + updatedMessage);
+
+      } catch (error) {
+        log("更新失敗：" + error.message);
+      }
+    }
+
+    connectBtn.addEventListener("click", connectWallet);
+    readBtn.addEventListener("click", readMessage);
+    updateBtn.addEventListener("click", updateMessage);
+  </script>
+</body>
+</html>
